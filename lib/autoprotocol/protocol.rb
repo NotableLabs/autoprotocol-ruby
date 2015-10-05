@@ -31,8 +31,8 @@ module Autoprotocol
     def container_type(shortname)
       if shortname.is_a? ContainerType
         shortname
-      elsif ContainerType::CONTAINER_TYPES.keys.include? shortname.to_sym
-        ContainerType::CONTAINER_TYPES[shortname.to_sym]
+      elsif ContainerType::CONTAINER_TYPES.keys.include? shortname
+        ContainerType::CONTAINER_TYPES[shortname]
       else
         raise ValueError.new "Unknown container type #{shortname} (known types=#{ContainerType::CONTAINER_TYPES.keys}"
       end
