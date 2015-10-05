@@ -10,7 +10,7 @@ spec = Gem::Specification.new do |s|
   s.email = ['connor@notablelabs.com', 'transon@notablelabs.com']
   s.homepage = 'https://github.com/NotableLabs/autoprotocol-ruby'
   s.license = 'MIT'
-  s.required_ruby_version = '>= 2.0.0'
+  s.required_ruby_version = '>= 2.1.0'
 
   s.add_dependency('json', '~> 1.8.1')
   s.add_development_dependency('mocha', '~> 0.13.2')
