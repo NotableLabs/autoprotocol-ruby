@@ -6,12 +6,12 @@ module Autoprotocol
     #
     # * vol : Unit, str
     #         A volume string or Unit with the unit "nanoliter" or "milliliter"
-    def convert_to_ul(vol)
+    def self.convert_to_ul(vol)
       v = Unit.fromstring(vol)
       if v.unit == "nanoliter"
-        v = Unit(v.value/1000, "microliter")
+        v = Unit.new(v.value/1000, "microliter")
       elsif v.unit == "milliliter"
-        v = Unit(v.value*1000, "microliter")
+        v = Unit.new(v.value*1000, "microliter")
       elsif v.unit == "microliter"
         return v
       else
@@ -33,7 +33,7 @@ module Autoprotocol
     # * q : int, str
     #       A string or integer representing a well index that corresponds to a
     #       quadrant on a 384-well plate.
-    def quad_ind_to_num(q)
+    def self.quad_ind_to_num(q)
       if q.is_a? String
         q = q.lower()
       end
@@ -64,7 +64,7 @@ module Autoprotocol
     # * human : bool, optional
     #       Return the corresponding well index in human readable form instead of
     #       as an integer if True.
-    def quad_num_to_ind(q, human=false)
+    def self.quad_num_to_ind(q, human=false)
       if q == 0
         if human
           return "A1"

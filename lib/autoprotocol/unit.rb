@@ -5,7 +5,7 @@ module Autoprotocol
   class Unit
     attr_accessor :value, :unit
     def initialize(value, unit)
-      self.value = float(value)
+      self.value = value.to_f
       self.unit = unit
     end
 
@@ -28,7 +28,7 @@ module Autoprotocol
         s
       else
         value, unit = s.split(':')
-        Unit.new(float(value), unit)
+        Unit.new(value.to_f, unit)
       end
     end
 
@@ -66,12 +66,12 @@ module Autoprotocol
 
     def >(other)
       self._check_type(other)
-      self.value < other.value
+      self.value > other.value
     end
 
     def >=(other)
       self._check_type(other)
-      self.value <= other.value
+      self.value >= other.value
     end
 
     def ==(other)

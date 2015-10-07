@@ -27,7 +27,7 @@ module Autoprotocol
       self.container_type = container_type
       self.storage = storage
       self._wells = []
-      (1..container_type.well_count).each do |index|
+      (0..container_type.well_count - 1).each do |index|
         self._wells.push Well.new(self, index)
       end
     end
@@ -41,8 +41,8 @@ module Autoprotocol
     #       Well reference in the form of an integer (ex: 0) or human-readable
     #       string (ex: "A1").
     def well(i)
-      if !int.is_a? String
-        raise TypeError.new "Well reference given is not of type 'int' or 'str'."
+      if !i.is_a? String and !i.is_a? Fixnum
+        raise TypeError.new "Well reference given is not of type Fixnum or String."
       end
       self._wells[self.robotize(i)]
     end
@@ -83,7 +83,7 @@ module Autoprotocol
     # `ContainerType.robotize()`_ for more information.
     def robotize(well_ref)
       if !well_ref.is_a? String and !well_ref.is_a? Integer and !well_ref.is_a? Well
-        raise TypeError.new "Well reference given is not of type 'str' 'int', or 'Well'."
+        raise TypeError.new "Well reference given is not of type String, Integer, or 'Well'."
       end
       self.container_type.robotize(well_ref)
     end
@@ -119,13 +119,13 @@ module Autoprotocol
     # columnwise : bool, optional
     #     returns the WellGroup columnwise instead of rowwise (ordered by
     #     well index).
-    def all_wells(columnwise=false)
+    def all_wells(columnwise: false)
       if columnwise
         num_cols = self.container_type.col_count
         num_rows = self.container_type.well_count.to_i / num_cols.to_i
         wells = []
-        (1..num_rows).each do |row|
-          (1..num_cols).each do |col|
+        (0..num_cols - 1).each do |col|
+          (0..num_rows - 1).each do |row|
             wells.push self._wells[row * num_cols + col]
           end
         end
@@ -182,12 +182,12 @@ module Autoprotocol
     # * columnwise : bool, optional
     #       Specifies whether the wells included should be counted columnwise
     #       instead of the default rowwise.
-    def wells_from(start, num, columnwise=false)
-      if !start.is_a? String and !start.is_a? Integer and !start.is_a? Well
-        raise TypeError.new "Well reference given is not of type 'str', 'int', or 'Well'."
+    def wells_from(start, num, columnwise: false)
+      if !start.is_a? String and !start.is_a? Fixnum and !start.is_a? Well
+        raise TypeError.new "Well reference given is not of type String, Fixnum, or Well."
       end
-      if !num.is_a? Integer
-        raise TypeError.new "Number of wells given is not of type 'int'."
+      if !num.is_a? Fixnum
+        raise TypeError.new "Number of wells given is not of type Fixnum."
       end
 
       start = self.robotize(start)
@@ -196,7 +196,7 @@ module Autoprotocol
         num_rows = self.container_type.row_count()
         start = col * num_rows + row
       end
-      WellGroup.new self.all_wells(columnwise).wells[start .. start + num]
+      WellGroup.new self.all_wells(columnwise: columnwise).wells[start .. start + num - 1]
     end
 
     # Return a WellGroup of Wells corresponding to the selected quadrant of

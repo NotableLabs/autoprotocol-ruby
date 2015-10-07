@@ -155,12 +155,518 @@ module Autoprotocol
       end
     end
 
-    def transfer(source, dest, volume, one_source=False, one_tip=False,
-                 aspirate_speed=None, dispense_speed=None,
-                 aspirate_source=None, dispense_target=None, pre_buffer=None,
-                 disposal_vol=None, transit_vol=None, blowout_buffer=None,
-                 tip_type=None, new_group=False, **mix_kwargs)
 
+    # Transfer liquid from one specific well to another.  A new pipette tip
+    # is used between each transfer step unless the "one_tip" parameter
+    # is set to True.
+    #
+    # === Example Usage
+    #
+    #     protocol = Protocol.new()
+    #     sample_plate = protocol.ref("sample_plate",
+    #                                 ct32kj234l21g,
+    #                                 container_type: "96-flat",
+    #                                 storage: "warm_37")
+    #
+    #     # a basic one-to-one transfer:
+    #     protocol.transfer(sample_plate.well("B3"),
+    #                       sample_plate.well("C3"),
+    #                       "20:microliter")
+    #
+    #     # using a basic transfer in a loop:
+    #     (1..12).each do |i|
+    #       protocol.transfer(sample_plate.well(i-1),
+    #                  sample_plate.well(i),
+    #                  "10:microliter")
+    #
+    #     # transfer liquid from each well in the first column of a 96-well
+    #     # plate to each well of the second column using a new tip and
+    #     # a different volume each time:
+    #     volumes = ["5:microliter", "10:microliter", "15:microliter",
+    #                "20:microliter", "25:microliter", "30:microliter",
+    #                "35:microliter", "40:microliter"]
+    #
+    #     protocol.transfer(sample_plate.wells_from(0,8,columnwise: true),
+    #                       sample_plate.wells_from(1,8,columnwise: true),
+    #                       volumes)
+    #
+    #     # transfer liquid from wells A1 and A2 (which both contain the same
+    #     # source) into each of the following 10 wells:
+    #     protocol.transfer(sample_plate.wells_from("A1", 2),
+    #                       sample_plate.wells_from("A3", 10),
+    #                       "10:microliter",
+    #                       one_source: true)
+    #
+    #     # transfer liquid from wells containing the same source to multiple
+    #     # other wells without discarding the tip in between:
+    #     protocol.transfer(sample_plate.wells_from("A1", 2),
+    #                       sample_plate.wells_from("A3", 10),
+    #                       "10:microliter",
+    #                       one_source: true,
+    #                       one_tip: true)
+    #
+    # === Parameters
+    #
+    # * source : Well, WellGroup
+    #       Well or wells to transfer liquid from.  If multiple source wells
+    #       are supplied and one_source is set to True, liquid will be
+    #       transfered from each source well specified as long as it contains
+    #       sufficient volume. Otherwise, the number of source wells specified
+    #       must match the number of destination wells specified and liquid
+    #       will be transfered from each source well to its corresponding
+    #       destination well.
+    # * dest : Well, WellGroup
+    #       Well or WellGroup to which to transfer liquid.  The number of
+    #       destination wells must match the number of source wells specified
+    #       unless one_source is set to True.
+    # * volume : str, Unit, list
+    #       The volume(s) of liquid to be transferred from source wells to
+    #       destination wells.  Volume can be specified as a single string or
+    #       Unit, or can be given as a list of volumes.  The length of a list
+    #       of volumes must match the number of destination wells given unless
+    #       the same volume is to be transferred to each destination well.
+    # * one_source : bool, optional
+    #       Specify whether liquid is to be transferred to destination wells
+    #       from a group of wells all containing the same substance.
+    # * one_tip : bool, optional
+    #       Specify whether all transfer steps will use the same tip or not.
+    # * mix_after : bool, optional
+    #       Specify whether to mix the liquid in the destination well after
+    #       liquid is transferred.
+    # * mix_before : bool, optional
+    #       Specify whether to mix the liquid in the source well before
+    #       liquid is transferred.
+    # * mix_vol : str, Unit, optional
+    #       Volume to aspirate and dispense in order to mix liquid in a wells
+    #       before and/or after each transfer step.
+    # * repetitions : int, optional
+    #       Number of times to aspirate and dispense in order to mix
+    #       liquid in well before and/or after each transfer step.
+    # * flowrate : str, Unit, optional
+    #       Speed at which to mix liquid in well before and/or after each
+    #       transfer step.
+    # * aspirate speed : str, Unit, optional
+    #       Speed at which to aspirate liquid from source well.  May not be
+    #       specified if aspirate_source is also specified. By default this is
+    #       the maximum aspiration speed, with the start speed being half of
+    #       the speed specified.
+    # * dispense_speed : str, Unit, optional
+    #       Speed at which to dispense liquid into the destination well.  May
+    #       not be specified if dispense_target is also specified.
+    # * aspirate_source : fn, optional
+    #       Can't be specified if aspirate_speed is also specified.
+    # * dispense_target : fn, optional
+    #       Same but opposite of  aspirate_source.
+    # * pre_buffer : str, Unit, optional
+    #       Volume of air aspirated before aspirating liquid.
+    # * disposal_vol : str, Unit, optional
+    #       Volume of extra liquid to aspirate that will be dispensed into
+    #       trash afterwards.
+    # * transit_vol : str, Unit, optional
+    #       Volume of air aspirated after aspirating liquid to reduce presence
+    #       of bubbles at pipette tip.
+    # * blowout_buffer : bool, optional
+    #       If true the operation will dispense the pre_buffer along with the
+    #       dispense volume. Cannot be true if disposal_vol is specified.
+    # * tip_type : str, optional
+    #       Type of tip to be used for the transfer operation.
+    # * new_group : bool, optional
+    #
+    # === Raises
+    #
+    # * RuntimeError
+    #       If more than one volume is specified as a list but the list length
+    #       does not match the number of destination wells given.
+    # * RuntimeError
+    #       If transferring from WellGroup to WellGroup that have different
+    #       number of wells and one_source is not true.
+    def transfer(source, dest, volume, one_source: false, one_tip: false,
+                 aspirate_speed: nil, dispense_speed: nil,
+                 aspirate_source: nil, dispense_target: nil, pre_buffer: nil,
+                 disposal_vol: nil, transit_vol: nil, blowout_buffer: nil,
+                 tip_type: nil, new_group: false, **mix_kwargs)
+
+      source = WellGroup.new(source)
+      dest = WellGroup.new(dest)
+      opts = []
+      len_source = source.wells.length
+      len_dest = dest.wells.length
+
+      # Auto-generate well-group if only 1 well specified and using >1 source
+      if !one_source
+        if len_dest > 1 and len_source == 1
+          source = WellGroup.new(source.wells * len_dest)
+          len_source = source.wells.length
+        end
+        if len_dest == 1 and len_source > 1
+          dest = WellGroup(dest.wells * len_source)
+          len_dest = dest.wells.length
+        end
+        if len_source != len_dest
+            raise RuntimeError.new("To transfer liquid from one well or \
+                                   multiple wells containing the same \
+                                   source, set one_source to true. To  \
+                                   transfer liquid from multiple wells to a \
+                                   single destination well, specify only one \
+                                   destination well. Otherwise, you must \
+                                   specify the same number of source and \
+                                   destination wells to do a one-to-one \
+                                   transfer.")
+        end
+      end
+
+      # Auto-generate list from single volume, check if list length matches
+      if volume.is_a? String or volume.is_a? Unit
+        if len_dest == 1 and !one_source
+          volume = [Unit.fromstring(volume)] * len_source
+        else
+          volume = [Unit.fromstring(volume)] * len_dest
+        end
+      elsif volume.is_a? Array and volume.length == len_dest
+        volume = volume.collect{ |x| Unit.fromstring(x) }
+      else
+        raise RuntimeError("Unless the same volume of liquid is being \
+                           transferred to each destination well, each \
+                           destination well must have a corresponding \
+                           volume in the form of a list.")
+      end
+
+      # Ensure enough volume in single well to transfer to all dest wells
+      if one_source
+        begin
+          source_vol = source.wells.collect{ |s| s.volume }
+          if volume.sum{ |a| a.value } > source_vol.sum{ |a| a.value }
+            raise RuntimeError.new("There is not enough volume in the source well(s) specified to complete \
+                                 the transfers.")
+          end
+          if len_source >= len_dest and source_vol.zip(volume).collect{ |i,j| i > j }.all?
+            sources = source.wells[0..len_dest - 1]
+            destinations = dest.wells
+            volumes = volume
+          else
+            sources = []
+            source_counter = 0
+            destinations = []
+            volumes = []
+            s = source.wells[source_counter]
+            vol = s.volume
+            max_decimal_places = 12
+            dest.wells.each_with_index do |d, idx|
+              vol_d = volume[idx]
+              while vol_d > Unit.fromstring("0:microliter") do
+                if vol > vol_d
+                  sources.append(s)
+                  destinations.append(d)
+                  volumes.append(vol_d)
+                  vol -= vol_d
+                  vol.value = vol.value.round(max_decimal_places)
+                  vol_d -= vol_d
+                  vol_d.value = vol_d.value.round(max_decimal_places)
+                else
+                  sources.append(s)
+                  destinations.append(d)
+                  volumes.append(vol)
+                  vol_d -= vol
+                  vol_d.value = vol_d.value.round(max_decimal_places)
+                  source_counter += 1
+                  if source_counter < len_source
+                    s = source.wells[source_counter]
+                    vol = s.volume
+                  end
+                end
+              end
+            end
+          end
+          source = WellGroup.new(sources)
+          dest = WellGroup.new(destinations)
+          volume = volumes
+        rescue ValueError, AttributeError => e
+          raise RuntimeError.new "When transferring liquid from multiple wells containing the same substance to \
+                                 multiple other wells, each source Well must have a volume attribute (aliquot) \
+                                 associated with it."
+        end
+
+        (0..source.length).collect{ |i| [source.wells[i], dest.wells[i], volume[i]] }.each do |s, d, v|
+          v = Util.convert_to_ul(v)
+          if v > Unit(750, "microliter")
+            diff = Unit.fromstring(v)
+            while diff > Unit(750, "microliter") do
+              self.transfer(s, d, "750:microliter", one_source, one_tip,
+                            aspirate_speed, dispense_speed, aspirate_source,
+                            dispense_target, pre_buffer, disposal_vol,
+                            transit_vol, blowout_buffer, tip_type,
+                            new_group, **mix_kwargs)
+              diff -= Unit(750, "microliter")
+            end
+
+            self.transfer(s, d, diff,  one_source, one_tip,
+                          aspirate_speed, dispense_speed, aspirate_source,
+                          dispense_target, pre_buffer, disposal_vol,
+                          transit_vol, blowout_buffer, tip_type,
+                          new_group, **mix_kwargs)
+            end
+            next
+          end
+
+          # Organize transfer options into dictionary (for json parsing)
+          xfer = {
+              "from": s,
+              "to": d,
+              "volume": v
+          }
+          # Volume accounting
+          if d.volume
+            d.volume += v
+          else
+            d.volume = v
+          end
+          if s.volume
+            s.volume -= v
+          end
+
+          # mix before and/or after parameters
+          if mix_kwargs and (!mix_kwargs.include? "mix_before" and !mix_kwargs.include? "mix_after")
+              raise RuntimeError.new "If you specify mix arguments on transfer() \
+                                     you must also specify mix_before and/or \
+                                     mix_after=True."
+          end
+          if mix_kwargs.include? "mix_before"
+            xfer["mix_before"] = {
+              "volume": [mix_kwargs["mix_vol_b"], mix_kwargs["mix_vol"], v/2].each {|v| break v if v},
+              "repetitions": [mix_kwargs["repetitions_b"], mix_kwargs["repetitions"], 10].each {|r| break r if r},
+              "speed":  [mix_kwargs["flowrate_b"], mix_kwargs["flowrate"], "100:microliter/second"].each {|s| break s if s}
+            }
+          end
+          if mix_kwargs.include? "mix_after"
+            xfer["mix_after"] = {
+              "volume": [mix_kwargs["mix_vol_a"], mix_kwargs["mix_vol"], v/2].each {|v| break v if v},
+              "repetitions": [mix_kwargs["repetitions_a"], mix_kwargs["repetitions"], 10].each {|r| break r if r},
+              "speed": [mix_kwargs["flowrate_a"], mix_kwargs["flowrate"], "100:microliter/second"].each {|sp| break sp if sp}
+            }
+          end
+          # Append transfer options
+          opt_list = ["aspirate_speed", "dispense_speed"]
+          opt_list.each do |option|
+            xfer[option] = option
+          end
+          x_opt_list = ["x_aspirate_source", "x_dispense_target",
+                        "x_pre_buffer", "x_disposal_vol", "x_transit_vol",
+                        "x_blowout_buffer"]
+          x_opt_list.each do |x_option|
+            xfer[x_option] = x_option[2..-1]
+          end
+          if v.value > 0
+            opts.push xfer
+          end
+
+        trans = {}
+        trans['x_tip_type'] = tip_type
+        if one_tip
+          trans["transfer"] = opts
+          if new_group
+            self.append(Pipette.new([trans]))
+          else
+            self._pipette([trans])
+          end
+        else
+          opts.each do |x|
+            trans = {}
+            trans['x_tip_type'] = tip_type
+            trans["transfer"] = [x]
+            if new_group
+              self.append(Pipette.new([trans]))
+            else
+              self._pipette([trans])
+            end
+          end
+        end
+      end
+    end
+
+    # Dispense the specified amount of the specified reagent to every well
+    # of a container using a reagent dispenser.
+    #
+    # === Example Usage
+    #
+    #     protocol = Protocol.new()
+    #     sample_plate = protocol.ref("sample_plate",
+    #                                 nil,
+    #                                 container_type: "96-flat",
+    #                                 storage: "warm_37")
+    #
+    #     protocol.dispense_full_plate(sample_plate,
+    #                                 "water",
+    #                                 "100:microliter")
+    #
+    # === Autoprotocol Output
+    #
+    #     "instructions": [
+    #         {
+    #           "reagent": "water",
+    #           "object": "sample_plate",
+    #           "columns": [
+    #             {
+    #               "column": 0,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 1,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 2,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 3,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 4,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 5,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 6,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 7,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 8,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 9,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 10,
+    #               "volume": "100:microliter"
+    #             },
+    #             {
+    #               "column": 11,
+    #               "volume": "100:microliter"
+    #             }
+    #           ],
+    #           "op": "dispense"
+    #         }
+    #     ]
+    #
+    # === Parameters
+    #
+    # * ref : Container
+    #       Container for reagent to be dispensed to.
+    # * reagent : str
+    #       Reagent to be dispensed to columns in container.
+    # * volume : Unit, str
+    #       Volume of reagent to be dispensed to each well
+    # * speed_percentage : int, optional
+    #       Integer between 1 and 100 that represents the percentage of the
+    #       maximum speed at which liquid is dispensed from the reagent
+    #       dispenser.
+    def dispense_full_plate(ref, reagent, volume, speed_percentage: nil)
+      if speed_percentage.nil? and
+         (speed_percentage > 100 or speed_percentage < 1)
+         raise RuntimeError.new "Invalid speed percentage specified."
+      end
+      columns = []
+      (0..ref.container_type.col_count).each do |col|
+        columns.append({"column": col, "volume": volume})
+      end
+      self.dispense(ref, reagent, columns, speed_percentage)
+    end
+
+    # Read luminescence of indicated wells.
+    #
+    # === Example Usage
+    #
+    #     protocol = Protocol.new()
+    #     sample_plate = protocol.ref("sample_plate",
+    #                                 nil,
+    #                                 container_type: "96-flat",
+    #                                 storage: "warm_37")
+    #
+    #     protocol.luminescence(sample_plate, sample_plate.wells_from(0,12),
+    #                           "test_reading")
+    #
+    # Autoprotocol Output
+    #
+    #     "instructions": [
+    #         {
+    #           "dataref": "test_reading",
+    #           "object": "sample_plate",
+    #           "wells": [
+    #             "A1",
+    #             "A2",
+    #             "A3",
+    #             "A4",
+    #             "A5"
+    #             "A6",
+    #             "A7",
+    #             "A8",
+    #             "A9",
+    #             "A10",
+    #             "A11",
+    #             "A12"
+    #           ],
+    #           "op": "luminescence"
+    #         }
+    #       ]
+    #
+    # === Parameters
+    #
+    # * ref : str, Container
+    #       Container to plate read.
+    # * wells : array, WellGroup
+    #       WellGroup or array of wells to be measured
+    # * dataref : str
+    #       Name of this dataset of measured luminescence readings.
+    def luminescence(ref, wells, dataref)
+      if wells.is_a? WellGroup
+        wells = wells.indices()
+      end
+      self.instructions.append(Luminescence.new(ref: ref, wells: wells, dataref: dataref))
+    end
+
+    # Move plate to designated thermoisolater or ambient area for incubation
+    # for specified duration.
+    #
+    # === Example Usage
+    #
+    #     protocol = Protocol.new()
+    #     sample_plate = protocol.ref("sample_plate",
+    #                                 nil,
+    #                                 "96-pcr",
+    #                                 storage: "warm_37")
+    #
+    #     # a plate must be sealed/covered before it can be incubated
+    #     protocol.seal(sample_plate)
+    #     protocol.incubate(sample_plate, "warm_37", "1:hour", shaking: true)
+    #
+    # Autoprotocol Output:
+    #
+    #     "instructions": [
+    #         {
+    #           "object": "sample_plate",
+    #           "op": "seal"
+    #         },
+    #         {
+    #           "duration": "1:hour",
+    #           "where": "warm_37",
+    #           "object": "sample_plate",
+    #           "shaking": true,
+    #           "op": "incubate",
+    #           "co2_percent": 0
+    #         }
+    #       ]
+    def incubate(ref, where, duration, shaking: false, co2: 0)
+      self.instructions.append(Incubate.new(ref:ref, where:where, duration:duration, shaking:shaking, co2:co2))
     end
 
     # Returns the entire protocol as a hash

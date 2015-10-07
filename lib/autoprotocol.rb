@@ -9,11 +9,15 @@ require 'autoprotocol/protocol'
 require 'autoprotocol/instruction'
 
 # Instructions
-require 'autoprotocol/instructions/incubate'
+require 'autoprotocol/instructions/cover'
 require 'autoprotocol/instructions/dispense'
+require 'autoprotocol/instructions/incubate'
+require 'autoprotocol/instructions/luminescence'
+require 'autoprotocol/instructions/uncover'
 
 # Errors
 require 'autoprotocol/errors/autoprotocol_error'
+require 'autoprotocol/errors/not_implemented_error'
 require 'autoprotocol/errors/runtime_error'
 require 'autoprotocol/errors/type_error'
 require 'autoprotocol/errors/value_error'

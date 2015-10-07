@@ -49,9 +49,9 @@ module Autoprotocol
     # * vol : str, Unit
     #       Theoretical volume to indicate for a Well.
     def volume=(volume)
-      v = Util.convert_to_ul(vol)
+      v = Util.convert_to_ul(volume)
       if v > Unit.new(self.container.container_type.well_volume_ul, 'microliter')
-        raise ValueError("Theoretical volume you are trying to set exceeds the maximum volume of this well.")
+        raise ValueError.new "Theoretical volume you are trying to set exceeds the maximum volume of this well."
       end
       @volume = v
       self
