@@ -14,6 +14,7 @@ require 'autoprotocol/instructions/dispense'
 require 'autoprotocol/instructions/incubate'
 require 'autoprotocol/instructions/luminescence'
 require 'autoprotocol/instructions/uncover'
+require 'autoprotocol/instructions/pipette'
 
 # Errors
 require 'autoprotocol/errors/autoprotocol_error'

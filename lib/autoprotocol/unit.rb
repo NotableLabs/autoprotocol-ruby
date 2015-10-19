@@ -33,25 +33,25 @@ module Autoprotocol
     end
 
     def to_s
-      ":".join([str(self.value), self.unit])
+      ([self.value.to_s, self.unit]).join(':')
     end
 
     def _check_type(other)
       if !other.is_a? Unit
-        raise ValueError, "Both operands must be of type Unit"
+        raise ValueError.new "Both operands must be of type Unit"
       elsif self.unit != other.unit
-        raise ValueError, "unit #{self.unit} is not #{other.unit}"
+        raise ValueError.new "unit #{self.unit} is not #{other.unit}"
       end
     end
 
     def +(other)
       self._check_type(other)
-      Unit(self.value + other.value, self.unit)
+      Unit.new(self.value + other.value, self.unit)
     end
 
     def -(other)
       self._check_type(other)
-      Unit(self.value - other.value, self.unit)
+      Unit.new(self.value - other.value, self.unit)
     end
 
     def <(other)
@@ -84,7 +84,7 @@ module Autoprotocol
         puts "WARNING: Unit.__mul__ and __div__ only support scalar multiplication. Converting #{other.to_s} to #{other.value.to_f}"
         other = other.value
       end
-      Unit(self.value * other, self.unit)
+      Unit.new(self.value * other, self.unit)
     end
 
     def /(other)
@@ -92,12 +92,12 @@ module Autoprotocol
         puts "WARNING: Unit.__mul__ and __div__ only support scalar multiplication. Converting #{other.to_s} to #{other.value.to_f}"
         other = other.value
       end
-      Unit(self.value / other, self.unit)
+      Unit.new(self.value / other, self.unit)
     end
 
     def <=>(other)
       self._check_type(other)
-      Unit(self.value <=> other, self.unit)
+      Unit.new(self.value <=> other, self.unit)
     end
   end
 end

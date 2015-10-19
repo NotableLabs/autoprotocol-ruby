@@ -316,13 +316,13 @@ module Autoprotocol
       end
 
       # Auto-generate list from single volume, check if list length matches
-      if volume.is_a? String or volume.is_a? Unit
-        if len_dest == 1 and !one_source
+      if volume.is_a?(String) || volume.is_a?(Unit)
+        if len_dest == 1 && !one_source
           volume = [Unit.fromstring(volume)] * len_source
         else
           volume = [Unit.fromstring(volume)] * len_dest
         end
-      elsif volume.is_a? Array and volume.length == len_dest
+      elsif volume.is_a?(Array) && volume.length == len_dest
         volume = volume.collect{ |x| Unit.fromstring(x) }
       else
         raise RuntimeError("Unless the same volume of liquid is being \
@@ -385,79 +385,80 @@ module Autoprotocol
                                  multiple other wells, each source Well must have a volume attribute (aliquot) \
                                  associated with it."
         end
-
-        (0..source.length).collect{ |i| [source.wells[i], dest.wells[i], volume[i]] }.each do |s, d, v|
-          v = Util.convert_to_ul(v)
-          if v > Unit(750, "microliter")
-            diff = Unit.fromstring(v)
-            while diff > Unit(750, "microliter") do
-              self.transfer(s, d, "750:microliter", one_source, one_tip,
-                            aspirate_speed, dispense_speed, aspirate_source,
-                            dispense_target, pre_buffer, disposal_vol,
-                            transit_vol, blowout_buffer, tip_type,
-                            new_group, **mix_kwargs)
-              diff -= Unit(750, "microliter")
-            end
-
-            self.transfer(s, d, diff,  one_source, one_tip,
+      end
+      (0..source.length - 1).collect{ |i| { source: source.wells[i], destination: dest.wells[i], volume: volume[i]} }.each do |transfer|
+        volume = Util.convert_to_ul(transfer[:volume])
+        source = transfer[:source]
+        destination = transfer[:destination]
+        if volume > Unit.new(750, "microliter")
+          diff = Unit.fromstring(volume)
+          while diff > Unit(750, "microliter") do
+            self.transfer(source, destination, "750:microliter", one_source, one_tip,
                           aspirate_speed, dispense_speed, aspirate_source,
                           dispense_target, pre_buffer, disposal_vol,
                           transit_vol, blowout_buffer, tip_type,
                           new_group, **mix_kwargs)
-            end
-            next
+            diff -= Unit(750, "microliter")
           end
 
-          # Organize transfer options into dictionary (for json parsing)
-          xfer = {
-              "from": s,
-              "to": d,
-              "volume": v
+          self.transfer(source, destination, diff,  one_source, one_tip,
+                        aspirate_speed, dispense_speed, aspirate_source,
+                        dispense_target, pre_buffer, disposal_vol,
+                        transit_vol, blowout_buffer, tip_type,
+                        new_group, **mix_kwargs)
+          next
+        end
+
+        # Organize transfer options into dictionary (for json parsing)
+        xfer = {
+            "from" => source,
+            "to" => destination,
+            "volume" => volume
+        }
+        # Volume accounting
+        if destination.volume
+          destination.volume += volume
+        else
+          destination.volume = volume
+        end
+        if source.volume
+          source.volume -= volume
+        end
+
+        # mix before and/or after parameters
+        if mix_kwargs && !mix_kwargs.empty? && (!mix_kwargs.include?("mix_before") && mix_kwargs.include?("mix_after"))
+            raise RuntimeError.new "If you specify mix arguments on transfer() \
+                                   you must also specify mix_before and/or \
+                                   mix_after=True."
+        end
+        if mix_kwargs.include? "mix_before"
+          xfer["mix_before"] = {
+            "volume" => [mix_kwargs["mix_vol_b"], mix_kwargs["mix_vol"], volume/2].each {|v| break v if v},
+            "repetitions" => [mix_kwargs["repetitions_b"], mix_kwargs["repetitions"], 10].each {|r| break r if r},
+            "speed" => [mix_kwargs["flowrate_b"], mix_kwargs["flowrate"], "100:microliter/second"].each {|s| break s if s}
           }
-          # Volume accounting
-          if d.volume
-            d.volume += v
-          else
-            d.volume = v
-          end
-          if s.volume
-            s.volume -= v
-          end
-
-          # mix before and/or after parameters
-          if mix_kwargs and (!mix_kwargs.include? "mix_before" and !mix_kwargs.include? "mix_after")
-              raise RuntimeError.new "If you specify mix arguments on transfer() \
-                                     you must also specify mix_before and/or \
-                                     mix_after=True."
-          end
-          if mix_kwargs.include? "mix_before"
-            xfer["mix_before"] = {
-              "volume": [mix_kwargs["mix_vol_b"], mix_kwargs["mix_vol"], v/2].each {|v| break v if v},
-              "repetitions": [mix_kwargs["repetitions_b"], mix_kwargs["repetitions"], 10].each {|r| break r if r},
-              "speed":  [mix_kwargs["flowrate_b"], mix_kwargs["flowrate"], "100:microliter/second"].each {|s| break s if s}
-            }
-          end
-          if mix_kwargs.include? "mix_after"
-            xfer["mix_after"] = {
-              "volume": [mix_kwargs["mix_vol_a"], mix_kwargs["mix_vol"], v/2].each {|v| break v if v},
-              "repetitions": [mix_kwargs["repetitions_a"], mix_kwargs["repetitions"], 10].each {|r| break r if r},
-              "speed": [mix_kwargs["flowrate_a"], mix_kwargs["flowrate"], "100:microliter/second"].each {|sp| break sp if sp}
-            }
-          end
-          # Append transfer options
-          opt_list = ["aspirate_speed", "dispense_speed"]
-          opt_list.each do |option|
-            xfer[option] = option
-          end
-          x_opt_list = ["x_aspirate_source", "x_dispense_target",
-                        "x_pre_buffer", "x_disposal_vol", "x_transit_vol",
-                        "x_blowout_buffer"]
-          x_opt_list.each do |x_option|
-            xfer[x_option] = x_option[2..-1]
-          end
-          if v.value > 0
-            opts.push xfer
-          end
+        end
+        if mix_kwargs.include? "mix_after"
+          xfer["mix_after"] = {
+            "volume" => [mix_kwargs["mix_vol_a"], mix_kwargs["mix_vol"], volume/2].each {|v| break v if v},
+            "repetitions" => [mix_kwargs["repetitions_a"], mix_kwargs["repetitions"], 10].each {|r| break r if r},
+            "speed" => [mix_kwargs["flowrate_a"], mix_kwargs["flowrate"], "100:microliter/second"].each {|sp| break sp if sp}
+          }
+        end
+        # Append transfer options
+        opt_list = ["aspirate_speed", "dispense_speed"]
+        opt_list.each do |option|
+          xfer[option] = option
+        end
+        x_opt_list = ["x_aspirate_source", "x_dispense_target",
+                      "x_pre_buffer", "x_disposal_vol", "x_transit_vol",
+                      "x_blowout_buffer"]
+        x_opt_list.each do |x_option|
+          xfer[x_option] = x_option[2..-1]
+        end
+        if volume.value > 0
+          opts.push xfer
+        end
 
         trans = {}
         trans['x_tip_type'] = tip_type
@@ -577,7 +578,7 @@ module Autoprotocol
       end
       columns = []
       (0..ref.container_type.col_count).each do |col|
-        columns.append({"column": col, "volume": volume})
+        columns.append({"column" => col, "volume" => volume})
       end
       self.dispense(ref, reagent, columns, speed_percentage)
     end
@@ -771,7 +772,11 @@ module Autoprotocol
 
     # Append given pipette groups to the protocol
     def _pipette(groups)
-      raise NotImplementedError.new 'This method is not yet implemented'
+      if self.instructions.length > 0 && self.instructions[-1].op == 'pipette'
+        self.instructions[-1].groups += groups
+      else
+        self.instructions.append(Pipette.new(groups: groups))
+      end
     end
 
     def self.fill_wells(dst_group, src_group, volume, distribute_target)
