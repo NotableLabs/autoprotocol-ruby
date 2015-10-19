@@ -411,9 +411,9 @@ module Autoprotocol
 
         # Organize transfer options into dictionary (for json parsing)
         xfer = {
-            "from": source,
-            "to": destination,
-            "volume": volume
+            "from" => source,
+            "to" => destination,
+            "volume" => volume
         }
         # Volume accounting
         if destination.volume
@@ -433,16 +433,16 @@ module Autoprotocol
         end
         if mix_kwargs.include? "mix_before"
           xfer["mix_before"] = {
-            "volume": [mix_kwargs["mix_vol_b"], mix_kwargs["mix_vol"], volume/2].each {|v| break v if v},
-            "repetitions": [mix_kwargs["repetitions_b"], mix_kwargs["repetitions"], 10].each {|r| break r if r},
-            "speed":  [mix_kwargs["flowrate_b"], mix_kwargs["flowrate"], "100:microliter/second"].each {|s| break s if s}
+            "volume" => [mix_kwargs["mix_vol_b"], mix_kwargs["mix_vol"], volume/2].each {|v| break v if v},
+            "repetitions" => [mix_kwargs["repetitions_b"], mix_kwargs["repetitions"], 10].each {|r| break r if r},
+            "speed" => [mix_kwargs["flowrate_b"], mix_kwargs["flowrate"], "100:microliter/second"].each {|s| break s if s}
           }
         end
         if mix_kwargs.include? "mix_after"
           xfer["mix_after"] = {
-            "volume": [mix_kwargs["mix_vol_a"], mix_kwargs["mix_vol"], volume/2].each {|v| break v if v},
-            "repetitions": [mix_kwargs["repetitions_a"], mix_kwargs["repetitions"], 10].each {|r| break r if r},
-            "speed": [mix_kwargs["flowrate_a"], mix_kwargs["flowrate"], "100:microliter/second"].each {|sp| break sp if sp}
+            "volume" => [mix_kwargs["mix_vol_a"], mix_kwargs["mix_vol"], volume/2].each {|v| break v if v},
+            "repetitions" => [mix_kwargs["repetitions_a"], mix_kwargs["repetitions"], 10].each {|r| break r if r},
+            "speed" => [mix_kwargs["flowrate_a"], mix_kwargs["flowrate"], "100:microliter/second"].each {|sp| break sp if sp}
           }
         end
         # Append transfer options
@@ -578,7 +578,7 @@ module Autoprotocol
       end
       columns = []
       (0..ref.container_type.col_count).each do |col|
-        columns.append({"column": col, "volume": volume})
+        columns.append({"column" => col, "volume" => volume})
       end
       self.dispense(ref, reagent, columns, speed_percentage)
     end
